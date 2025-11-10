@@ -210,6 +210,7 @@ fun GameRow(
             feedbackColors = feedbackColors
         )
     }
+
 }
 
 @Composable

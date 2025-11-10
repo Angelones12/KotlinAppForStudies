@@ -1,6 +1,7 @@
 // angelones12/kotlinappforstudies/KotlinAppForStudies-b96ec3468917a2671c5912202db414b554475358/app/src/main/java/com/example/mjkapp/GameScreen.kt
 package com.example.mjkapp
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,7 +30,7 @@ fun CircularButton(
     onClick: () -> Unit,
     color: Color,
     enabled: Boolean = true,
-    modifier: Modifier = Modifier,
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     content: @Composable () -> Unit = {}
 ) {
     val animatedColor by animateColorAsState(
@@ -217,22 +218,13 @@ fun GameScreen(
     onNavigateToResults: (score: Int) -> Unit,
     onNavigateBackToProfile: () -> Unit
 ) {
-    // --- POCZĄTEK POPRAWKI ---
-    // Te stany SĄ opakowane w `remember`. To "zapamiętuje" kod, próby
-    // i stan gry pomiędzy odświeżeniami ekranu.
-    // Klucz `numAvailableColors` zapewnia reset gry po powrocie z ekranu profilu
-    // i wybraniu innej liczby kolorów.
     var correctColors by remember(numAvailableColors) { mutableStateOf(selectRandomColors(AvailableColors, numAvailableColors)) }
     var attempts by remember(numAvailableColors) { mutableStateOf<SnapshotStateList<GameAttempt>>(mutableStateListOf()) }
     var currentGuess by remember(numAvailableColors) { mutableStateOf(List(4) { Color.Transparent }) }
     var isGameWon by remember(numAvailableColors) { mutableStateOf(false) }
-    // --- KONIEC POPRAWKI ---
-
     val rowData = attempts + listOfNotNull(if (!isGameWon) GameAttempt(currentGuess, emptyList()) else null)
     val currentAttemptIndex = rowData.lastIndex
     val score = attempts.size
-
-    // Lista dostępnych kolorów dla logiki wybierania
     val selectionPool = remember(numAvailableColors) {
         AvailableColors.take(numAvailableColors)
     }
@@ -266,7 +258,6 @@ fun GameScreen(
     }
 
     val onStartOverClick: () -> Unit = {
-        // Ta funkcja JEDYNIE resetuje grę
         correctColors = selectRandomColors(AvailableColors, numAvailableColors)
         attempts = mutableStateListOf()
         currentGuess = List(4) { Color.Transparent }
@@ -288,7 +279,6 @@ fun GameScreen(
                 text = "Your score: $score",
                 style = MaterialTheme.typography.headlineMedium
             )
-            // Przycisk Logout
             Button(onClick = onNavigateBackToProfile) {
                 Text("Logout")
             }
@@ -304,7 +294,6 @@ fun GameScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             itemsIndexed(rowData) { index, attempt ->
-                // Animacja nowego wiersza
                 AnimatedVisibility(
                     visible = true,
                     enter = expandVertically(

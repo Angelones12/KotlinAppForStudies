@@ -1,3 +1,4 @@
+// angelones12/kotlinappforstudies/KotlinAppForStudies-b96ec3468917a2671c5912202db414b554475358/app/src/main/java/com/example/mjkapp/GameLogic.kt
 package com.example.mjkapp
 
 import androidx.compose.ui.graphics.Color
@@ -21,7 +22,7 @@ val AvailableColors = listOf(
     Color.DarkGray
 )
 
-// Funkcja selectNextAvailableColor (logika)
+// Funkcja selectNextAvailableColor (logika) - bez zmian
 fun selectNextAvailableColor(
     availableColors: List<Color>,
     selectedColors: List<Color>,
@@ -42,49 +43,62 @@ fun selectNextAvailableColor(
     return available[nextIndex]
 }
 
-// Funkcja selectRandomColors (logika)
-fun selectRandomColors(availableColors: List<Color>): List<Color> {
-    require(availableColors.size >= 4) { "Musi być co najmniej 4 unikalne kolory" }
-    return availableColors.shuffled(Random.Default).take(4)
+// Funkcja selectRandomColors (logika) - bez zmian
+fun selectRandomColors(availableColors: List<Color>, numAvailableColors: Int): List<Color> {
+    val pool = availableColors.take(numAvailableColors)
+    require(pool.size >= 4) { "Musi być co najmniej 4 unikalne kolory do wylosowania kodu" }
+    return pool.shuffled(Random.Default).take(4)
 }
 
-// Funkcja checkColors (logika)
+// --- POCZĄTEK ZMIAN W "checkColors" ---
+
+/**
+ * Sprawdza zgadywane kolory i zwraca listę podpowiedzi.
+ *
+ * @param selectedColors Lista kolorów wybrana przez gracza.
+ * @param correctColors Sekretny kod (poprawna lista kolorów).
+ * @return Lista 4 kolorów podpowiedzi (Zielony, Żółty lub Czerwony).
+ */
 fun checkColors(
     selectedColors: List<Color>,
-    correctColors: List<Color>,
-    unfoundColor: Color
+    correctColors: List<Color>
 ): List<Color> {
-    val feedback = mutableListOf<Color>()
-    val correctColorsUsed = BooleanArray(4) { false }
-    val selectedColorsUsed = BooleanArray(4) { false }
 
-    // 1. Sprawdzanie Czerwonych (Właściwy kolor na właściwym miejscu)
+    // --- POPRAWKA: Nowe definicje kolorów ---
+    val PERFECT_MATCH = Color.Green  // Trafione (dobry kolor, dobre miejsce)
+    val PARTIAL_MATCH = Color.Yellow // Dobry kolor na złym miejscu
+    val NO_MATCH = Color.Red       // Missmatch (pudło)
+    // --- KONIEC POPRAWKI ---
+
+    // Tablice śledzące, które piny zostały już użyte do przyznania punktu
+    val codeUsed = BooleanArray(4) { false }
+    val guessUsed = BooleanArray(4) { false }
+
+    // --- POPRAWKA: Wynikowa lista domyślnie wypełniona kolorem "pudła" ---
+    val feedback = MutableList(4) { NO_MATCH }
+
+    // 1. Pętla sprawdzająca IDEALNE TRAFIENIA (Zielone kółka)
     for (i in 0..3) {
         if (selectedColors[i] == correctColors[i]) {
-            feedback.add(Color.Red)
-            correctColorsUsed[i] = true
-            selectedColorsUsed[i] = true
+            feedback[i] = PERFECT_MATCH
+            codeUsed[i] = true
+            guessUsed[i] = true
         }
     }
 
-    // 2. Sprawdzanie Żółtych (Właściwy kolor, niewłaściwe miejsce)
+    // 2. Pętla sprawdzająca CZĘŚCIOWE TRAFIENIA (Żółte kółka)
     for (i in 0..3) {
-        if (!selectedColorsUsed[i]) {
+        if (!guessUsed[i]) {
             for (j in 0..3) {
-                if (!correctColorsUsed[j] && selectedColors[i] == correctColors[j]) {
-                    feedback.add(Color.Yellow)
-                    correctColorsUsed[j] = true
-                    selectedColorsUsed[i] = true
+                if (!codeUsed[j] && selectedColors[i] == correctColors[j]) {
+                    feedback[i] = PARTIAL_MATCH
+                    codeUsed[j] = true
                     break
                 }
             }
         }
     }
 
-    // 3. Wypełnianie kolorem tła
-    while (feedback.size < 4) {
-        feedback.add(unfoundColor)
-    }
-
-    return feedback.shuffled()
+    // 3. Zwracamy listę podpowiedzi (bez mieszania)
+    return feedback
 }

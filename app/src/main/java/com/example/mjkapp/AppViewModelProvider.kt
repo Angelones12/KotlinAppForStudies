@@ -1,5 +1,6 @@
 package com.example.mjkapp
-
+// CAŁY PLIK ZAKOMENTOWANY - ZASTĄPIONE PRZEZ HILT
+/*
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
@@ -32,3 +33,4 @@ object AppViewModelProvider {
 // Funkcja pomocnicza do pobierania obiektu aplikacji [cite: 163-166]
 fun CreationExtras.masterAndApplication(): MasterAndApplication =
     (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MasterAndApplication)
+ */

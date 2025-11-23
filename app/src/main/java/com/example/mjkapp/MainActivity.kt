@@ -1,20 +1,14 @@
-// angelones12/kotlinappforstudies/KotlinAppForStudies-b96ec3468917a2671c5912202db414b554475358/app/src/main/java/com/example/mjkapp/MainActivity.kt
 package com.example.mjkapp
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.mjkapp.ui.theme.MjKappTheme
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,36 +16,39 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-
-// Dodatkowe importy dla animacji
-import androidx.compose.animation.core.*
-import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-
-// Dodatkowe importy dla nawigacji
-import androidx.navigation.compose.*
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
+import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import coil.compose.AsyncImage
+import com.example.mjkapp.AppViewModelProvider
+import com.example.mjkapp.ui.theme.MjKappTheme
 
 object Destinations {
     const val PROFILE_ROUTE = "profile_screen"
-    const val GAME_ROUTE = "game_screen/{numColors}"
+    // ZMIANA: Dodano parametr {playerId} do ścieżki
+    const val GAME_ROUTE = "game_screen/{numColors}/{playerId}"
     const val RESULTS_ROUTE = "results_screen/{score}"
     const val NUM_COLORS_KEY = "numColors"
+    const val PLAYER_ID_KEY = "playerId"
     const val SCORE_KEY = "score"
 }
 
+// --- Komponenty pomocnicze (bez zmian) ---
 @Composable
 fun OutlinedTextFieldWithError(
     value: String,
@@ -72,23 +69,12 @@ fun OutlinedTextFieldWithError(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = modifier.fillMaxWidth(),
         trailingIcon = {
-            if (isError) {
-                Icon(
-                    Icons.Filled.Info,
-                    contentDescription = "Błąd",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+            if (isError) Icon(Icons.Filled.Info, contentDescription = "Błąd", tint = MaterialTheme.colorScheme.error)
         },
         supportingText = {
-            Text(
-                text = if (isError) errorMessage else " ",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.heightIn(min = 16.dp)
-            )
+            Text(if (isError) errorMessage else " ", color = MaterialTheme.colorScheme.error)
         }
     )
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -98,277 +84,155 @@ fun ProfileImageWithPicker(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.size(200.dp)) {
-        val imageModifier = Modifier
-            .fillMaxSize()
-            .clip(CircleShape)
-
+        val imageModifier = Modifier.fillMaxSize().clip(CircleShape)
         if (profileImageUri != null) {
-            AsyncImage(
-                model = profileImageUri,
-                contentDescription = "Zdjęcie profilowe",
-                modifier = imageModifier,
-                contentScale = ContentScale.Crop
-            )
+            AsyncImage(model = profileImageUri, contentDescription = null, modifier = imageModifier, contentScale = ContentScale.Crop)
         } else {
-            Icon(
-                imageVector = Icons.Default.Help,
-                contentDescription = "Brak zdjęcia profilowego",
-                modifier = imageModifier.padding(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Icon(Icons.Default.Help, contentDescription = null, modifier = imageModifier.padding(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-
-        IconButton(
-            onClick = selectImageOnClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(48.dp)
-                .padding(4.dp)
-        ) {
-            Icon(
-                Icons.Filled.Create,
-                contentDescription = "Wybierz obraz",
-                tint = MaterialTheme.colorScheme.primary
-            )
+        IconButton(onClick = selectImageOnClick, modifier = Modifier.align(Alignment.TopEnd).size(48.dp)) {
+            Icon(Icons.Filled.Create, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
+// --- ZAKTUALIZOWANY PROFILE SCREEN ---
 @Composable
 fun ProfileScreen(
-    name: String,
-    email: String,
-    numColors: String,
+    viewModel: ProfileViewModel, // ZMIANA: Przyjmujemy ViewModel zamiast prostych zmiennych
     profileImageUri: Uri?,
-    onNameChange: (String) -> Unit,
-    onEmailChange: (String) -> Unit,
-    onNumColorsChange: (String) -> Unit,
     onImageSelect: (Uri?) -> Unit,
-    onNavigateToGame: (Int) -> Unit
+    onNavigateToGame: (Int, Long) -> Unit
 ) {
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = onImageSelect
     )
+
+    // Pobieramy wartości bezpośrednio z ViewModelu
+    val name = viewModel.name.value
+    val email = viewModel.email.value
+    val numColors = viewModel.numColors.value
+
     val isValidName: (String) -> Boolean = { it.isNotEmpty() }
     val isValidEmail: (String) -> Boolean = { it.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$")) }
-    val isValidNumColors: (String) -> Boolean = {
-        it.toIntOrNull()?.let { num -> num in 5..10 } ?: false
-    }
-    val infiniteTransition = rememberInfiniteTransition(label = "titleInfiniteTransition")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ), label = "titleScale"
-    )
+    val isValidNumColors: (String) -> Boolean = { it.toIntOrNull()?.let { num -> num in 5..10 } ?: false }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Top,
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "MasterAnd",
-            style = MaterialTheme.typography.displayLarge,
-            modifier = Modifier
-                .padding(bottom = 48.dp)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    transformOrigin = TransformOrigin.Center
-                }
-        )
+        Text("MasterAnd", style = MaterialTheme.typography.displayLarge, modifier = Modifier.padding(bottom = 48.dp))
+
         ProfileImageWithPicker(
             profileImageUri = profileImageUri,
-            selectImageOnClick = {
-                imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            },
-            modifier = Modifier.size(200.dp)
+            selectImageOnClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
         )
-
         Spacer(modifier = Modifier.height(32.dp))
 
-        OutlinedTextFieldWithError(
-            value = name,
-            onValueChange = onNameChange,
-            label = "Enter name",
-            keyboardType = KeyboardType.Text,
-            isValid = isValidName,
-            errorMessage = "Name can't be empty",
-        )
-
-        OutlinedTextFieldWithError(
-            value = email,
-            onValueChange = onEmailChange,
-            label = "Enter email",
-            keyboardType = KeyboardType.Email,
-            isValid = isValidEmail,
-            errorMessage = "Invalid email format",
-        )
-
-        OutlinedTextFieldWithError(
-            value = numColors,
-            onValueChange = onNumColorsChange,
-            label = "Enter number of colors",
-            keyboardType = KeyboardType.Number,
-            isValid = isValidNumColors,
-            errorMessage = "Must be between 5 and 10",
-        )
+        // Aktualizujemy stan w ViewModelu przy wpisywaniu tekstu
+        OutlinedTextFieldWithError(value = name, onValueChange = { viewModel.name.value = it }, label = "Enter name", keyboardType = KeyboardType.Text, isValid = isValidName, errorMessage = "Name can't be empty")
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextFieldWithError(value = email, onValueChange = { viewModel.email.value = it }, label = "Enter email", keyboardType = KeyboardType.Email, isValid = isValidEmail, errorMessage = "Invalid email format")
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextFieldWithError(value = numColors, onValueChange = { viewModel.numColors.value = it }, label = "Enter number of colors", keyboardType = KeyboardType.Number, isValid = isValidNumColors, errorMessage = "Must be between 5 and 10")
 
         Spacer(modifier = Modifier.height(32.dp))
 
         val isFormValid = isValidName(name) && isValidEmail(email) && isValidNumColors(numColors)
 
         Button(
-            onClick = { onNavigateToGame(numColors.toInt()) },
+            onClick = {
+                // ZMIANA: Wywołujemy logikę bazy danych (logowanie/rejestracja)
+                viewModel.loginOrRegister { playerId ->
+                    onNavigateToGame(numColors.toInt(), playerId)
+                }
+            },
             enabled = isFormValid,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) {
             Text("Start game")
         }
     }
 }
+
+// --- ZAKTUALIZOWANA NAWIGACJA ---
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    // Stan pól ProfileScreen, podniesiony do NavHost (State Hoisting)
-    val nameState = rememberSaveable { mutableStateOf("") }
-    val emailState = rememberSaveable { mutableStateOf("") }
-    val numColorsState = rememberSaveable { mutableStateOf("5") }
+    // Zdjęcie nadal trzymamy lokalnie, bo ViewModel w Lab 3 nie obsługuje Uri (tylko proste typy w bazie)
     val profileImageUriState = rememberSaveable { mutableStateOf<Uri?>(null) }
 
+    NavHost(navController = navController, startDestination = Destinations.PROFILE_ROUTE) {
 
-    NavHost(
-        navController = navController,
-        startDestination = Destinations.PROFILE_ROUTE,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        composable(
-            route = Destinations.PROFILE_ROUTE,
-            enterTransition = {
-                fadeIn(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideIntoContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                            animationSpec = tween(500, easing = EaseIn)
-                        )
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideOutOfContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.End,
-                            animationSpec = tween(500, easing = EaseOut)
-                        )
-            }
-        ) {
+        // EKRAN PROFILU
+        composable(Destinations.PROFILE_ROUTE) {
+            // ZMIANA: Pobieramy ViewModel używając naszej Fabryki
+            val profileViewModel: ProfileViewModel = viewModel(factory = AppViewModelProvider.Factory)
+
             ProfileScreen(
-                name = nameState.value,
-                email = emailState.value,
-                numColors = numColorsState.value,
+                viewModel = profileViewModel,
                 profileImageUri = profileImageUriState.value,
-                onNameChange = { nameState.value = it },
-                onEmailChange = { emailState.value = it },
-                onNumColorsChange = { numColorsState.value = it },
                 onImageSelect = { profileImageUriState.value = it },
-                onNavigateToGame = { numColors ->
+                onNavigateToGame = { numColors, playerId ->
                     navController.navigate(
-                        Destinations.GAME_ROUTE.replace(
-                            "{${Destinations.NUM_COLORS_KEY}}",
-                            numColors.toString()
-                        )
+                        Destinations.GAME_ROUTE
+                            .replace("{${Destinations.NUM_COLORS_KEY}}", numColors.toString())
+                            .replace("{${Destinations.PLAYER_ID_KEY}}", playerId.toString())
                     )
                 }
             )
         }
 
-        // Ekran Gry
+        // EKRAN GRY
         composable(
             route = Destinations.GAME_ROUTE,
             arguments = listOf(
-                navArgument(Destinations.NUM_COLORS_KEY) { type = NavType.IntType }
-            ),
-            enterTransition = {
-                fadeIn(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideIntoContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                            animationSpec = tween(500, easing = EaseIn)
-                        )
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideOutOfContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.End,
-                            animationSpec = tween(500, easing = EaseOut)
-                        )
-            }
+                navArgument(Destinations.NUM_COLORS_KEY) { type = NavType.IntType },
+                navArgument(Destinations.PLAYER_ID_KEY) { type = NavType.LongType } // Odbieramy ID gracza
+            )
         ) { backStackEntry ->
             val numColors = backStackEntry.arguments?.getInt(Destinations.NUM_COLORS_KEY) ?: 5
+            val playerId = backStackEntry.arguments?.getLong(Destinations.PLAYER_ID_KEY) ?: 0L
 
+            // ZMIANA: Wstrzykujemy GameViewModel
+            val gameViewModel: GameViewModel = viewModel(factory = AppViewModelProvider.Factory)
+
+            // (Musimy zaktualizować GameScreen.kt, aby przyjmował te parametry - patrz Krok 2)
             GameScreen(
                 numAvailableColors = numColors,
+                playerId = playerId,      // Przekazujemy ID
+                viewModel = gameViewModel, // Przekazujemy ViewModel
                 onNavigateToResults = { score ->
-                    navController.navigate(
-                        Destinations.RESULTS_ROUTE.replace(
-                            "{${Destinations.SCORE_KEY}}",
-                            score.toString()
-                        )
-                    )
+                    navController.navigate(Destinations.RESULTS_ROUTE.replace("{${Destinations.SCORE_KEY}}", score.toString()))
                 },
                 onNavigateBackToProfile = {
-                    // Wylogowanie/Przerwanie gry (Lab 2c - #5)
-                    nameState.value = ""
-                    emailState.value = ""
-                    numColorsState.value = "5"
-                    profileImageUriState.value = null
-
                     navController.popBackStack(Destinations.PROFILE_ROUTE, inclusive = false)
                 }
             )
         }
 
-        // Ekran Wyników
+        // EKRAN WYNIKÓW
         composable(
             route = Destinations.RESULTS_ROUTE,
-            arguments = listOf(
-                navArgument(Destinations.SCORE_KEY) { type = NavType.IntType }
-            ),
-            enterTransition = {
-                fadeIn(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideIntoContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                            animationSpec = tween(500, easing = EaseIn)
-                        )
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(500, easing = LinearEasing)) +
-                        slideOutOfContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.End,
-                            animationSpec = tween(500, easing = EaseOut)
-                        )
-            }
+            arguments = listOf(navArgument(Destinations.SCORE_KEY) { type = NavType.IntType })
         ) { backStackEntry ->
             val score = backStackEntry.arguments?.getInt(Destinations.SCORE_KEY) ?: 0
 
+            // ZMIANA: Wstrzykujemy ResultsViewModel
+            val resultsViewModel: ResultsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+
+            // Potrzebujemy też ProfileViewModel aby obsłużyć Logout
+            val profileViewModel: ProfileViewModel = viewModel(factory = AppViewModelProvider.Factory)
+
             ResultsScreen(
                 recentScore = score,
-                onRestartGame = {
-                    // Powrót do GameScreen (Lab 2c - #3)
-                    navController.popBackStack()
-                },
+                viewModel = resultsViewModel, // Przekazujemy ViewModel z listą wyników
+                onRestartGame = { navController.popBackStack() },
                 onLogout = {
-                    // Wylogowanie i powrót do ProfileScreen (Lab 2c - #4)
-                    nameState.value = ""
-                    emailState.value = ""
-                    numColorsState.value = "5"
+                    profileViewModel.logout() // Czyścimy dane profilu
                     profileImageUriState.value = null
-
                     navController.popBackStack(Destinations.PROFILE_ROUTE, inclusive = false)
                 }
             )
@@ -381,31 +245,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MjKappTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AppNavigation() // Używamy zrefaktoryzowanej nawigacji
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    AppNavigation()
                 }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ProfileScreenPreview() {
-    MjKappTheme {
-        ProfileScreen(
-            name = "Test",
-            email = "a@b.com",
-            numColors = "5",
-            profileImageUri = null,
-            onNameChange = {},
-            onEmailChange = {},
-            onNumColorsChange = {},
-            onImageSelect = {},
-            onNavigateToGame = {}
-        )
     }
 }

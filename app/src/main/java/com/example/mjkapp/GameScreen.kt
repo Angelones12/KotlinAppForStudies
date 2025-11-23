@@ -1,7 +1,8 @@
-// angelones12/kotlinappforstudies/KotlinAppForStudies-b96ec3468917a2671c5912202db414b554475358/app/src/main/java/com/example/mjkapp/GameScreen.kt
 package com.example.mjkapp
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,9 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-// Dodatkowe importy dla animacji
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+// --- KOMPONENTY POMOCNICZE (TE, KTÓRYCH BRAKOWAŁO) ---
 
 @Composable
 fun CircularButton(
@@ -35,7 +34,7 @@ fun CircularButton(
 ) {
     val animatedColor by animateColorAsState(
         targetValue = color,
-        animationSpec = repeatable( // Powtarza się kilkukrotnie (np. 3 razy)
+        animationSpec = repeatable(
             iterations = 3,
             animation = tween(200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -76,31 +75,24 @@ fun SmallCircle(
     )
 }
 
-// FeedbackCircles z sekwencyjną animacją koloru
 @Composable
 fun FeedbackCircles(
     feedbackColors: List<Color>,
     modifier: Modifier = Modifier
 ) {
-    // Używamy Color.Red jako domyślnego koloru "pudła" (mismatch)
     val initialColor = Color.Red
-
     val color1 = remember { Animatable(initialColor) }
     val color2 = remember { Animatable(initialColor) }
     val color3 = remember { Animatable(initialColor) }
     val color4 = remember { Animatable(initialColor) }
 
-    // Uruchamiamy sekwencyjną animację przy zmianie listy feedbackColors
     LaunchedEffect(feedbackColors) {
         val colors = listOf(color1, color2, color3, color4)
-        // Jeśli lista jest pusta (np. dla bieżącej próby), ustawiamy domyślny kolor (Red)
         val targetColors = if (feedbackColors.isNotEmpty()) {
             feedbackColors
         } else {
             List(4) { initialColor }
         }
-
-        // Sekwencyjna animacja
         for (i in 0..3) {
             colors[i].animateTo(targetColors[i], animationSpec = tween(150))
         }
@@ -110,16 +102,12 @@ fun FeedbackCircles(
         modifier = modifier.padding(end = 5.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             SmallCircle(color1.value, size = 10.dp)
             SmallCircle(color2.value, size = 10.dp)
         }
         Spacer(modifier = Modifier.height(2.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             SmallCircle(color3.value, size = 10.dp)
             SmallCircle(color4.value, size = 10.dp)
         }
@@ -172,17 +160,10 @@ fun GameRow(
             modifier = Modifier.weight(1f)
         )
 
-        // Przycisk zatwierdzający z animacją widoczności
         AnimatedVisibility(
             visible = clickable,
-            enter = scaleIn(
-                animationSpec = tween(300),
-                initialScale = 0f
-            ),
-            exit = scaleOut(
-                animationSpec = tween(300),
-                targetScale = 0f
-            )
+            enter = scaleIn(animationSpec = tween(300), initialScale = 0f),
+            exit = scaleOut(animationSpec = tween(300), targetScale = 0f)
         ) {
             IconButton(
                 onClick = onCheckClick,
@@ -203,19 +184,19 @@ fun GameRow(
             }
         }
 
-
         Spacer(modifier = Modifier.width(16.dp))
 
-        FeedbackCircles(
-            feedbackColors = feedbackColors
-        )
+        FeedbackCircles(feedbackColors = feedbackColors)
     }
-
 }
+
+// --- GŁÓWNA FUNKCJA EKRANU (ZAKTUALIZOWANA O LOGIKĘ VIEWMODEL) ---
 
 @Composable
 fun GameScreen(
     numAvailableColors: Int,
+    playerId: Long,              // Nowy parametr
+    viewModel: GameViewModel,    // Nowy parametr
     onNavigateToResults: (score: Int) -> Unit,
     onNavigateBackToProfile: () -> Unit
 ) {
@@ -223,6 +204,7 @@ fun GameScreen(
     var attempts by remember(numAvailableColors) { mutableStateOf<SnapshotStateList<GameAttempt>>(mutableStateListOf()) }
     var currentGuess by remember(numAvailableColors) { mutableStateOf(List(4) { Color.Transparent }) }
     var isGameWon by remember(numAvailableColors) { mutableStateOf(false) }
+
     val rowData = attempts + listOfNotNull(if (!isGameWon) GameAttempt(currentGuess, emptyList()) else null)
     val currentAttemptIndex = rowData.lastIndex
     val score = attempts.size
@@ -244,15 +226,20 @@ fun GameScreen(
 
     val onCheckClick: () -> Unit = {
         if (currentGuess.none { it == Color.Transparent }) {
-            // Wywołujemy logikę sprawdzania (Green/Yellow/Red)
+            // Logika sprawdzania (z pliku GameLogic.kt)
             val feedback = checkColors(currentGuess, correctColors)
             val newAttempt = GameAttempt(currentGuess, feedback)
             attempts.add(newAttempt)
             currentGuess = List(4) { Color.Transparent }
 
-            // Sprawdzamy wygraną (4 ZIELONE kółka)
+            // Sprawdzamy wygraną (4 zielone)
             if (feedback.count { it == Color.Green } == 4) {
                 isGameWon = true
+
+                // --- TUTAJ ZAPISUJEMY WYNIK DO BAZY ---
+                viewModel.saveScore(playerId, attempts.size)
+
+                // Nawigacja do wyników
                 onNavigateToResults(attempts.size)
             }
         }
@@ -285,7 +272,6 @@ fun GameScreen(
             }
         }
 
-
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -306,7 +292,6 @@ fun GameScreen(
                     GameRow(
                         selectedColors = attempt.guess,
                         feedbackColors = attempt.feedback,
-                        // Można klikać tylko wiersz, który jest aktualną próbą
                         clickable = index == currentAttemptIndex && !isGameWon,
                         onSelectColorClick = onSelectColorClick,
                         onCheckClick = onCheckClick

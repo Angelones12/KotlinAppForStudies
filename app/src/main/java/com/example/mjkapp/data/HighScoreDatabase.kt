@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 // Definiujemy, jakie encje wchodzą w skład bazy
-@Database(entities = [Player::class, Score::class], version = 1, exportSchema = false)
+@Database(entities = [Player::class, Score::class], version = 4, exportSchema = false)
 abstract class HighScoreDatabase : RoomDatabase() {
 
     abstract fun playerDao(): PlayerDao
@@ -25,7 +25,7 @@ abstract class HighScoreDatabase : RoomDatabase() {
                     HighScoreDatabase::class.java,
                     "highscore_database"
                 )
-                    //.fallbackToDestructiveMigration() // Opcjonalne: czyści bazę przy zmianie wersji
+                    .fallbackToDestructiveMigration() // Opcjonalne: czyści bazę przy zmianie wersji
                     .build()
                     .also { Instance = it }
             }

@@ -13,6 +13,7 @@ abstract class HighScoreDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
     abstract fun playerScoreDao(): PlayerScoreDao
 
+
     companion object {
         @Volatile
         private var Instance: HighScoreDatabase? = null
